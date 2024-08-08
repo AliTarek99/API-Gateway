@@ -1,11 +1,16 @@
 const { buildSchema } = require('graphql');
 
 const schema = buildSchema(`
+    type error {
+        message: String
+        code: Int
+    }
+
     type User {
-        id: ID!
+        errors: [error]!
+        id: ID
         qrcode: String
-        type: String!
-        jwt: String
+        token: String
     }
 
     input registerInput {
@@ -20,13 +25,14 @@ const schema = buildSchema(`
     }
 
     type dummy {
-        id: ID!
-        text: String!
+        id: ID
+        text: String
+        errors: [error]!
     }
 
 
     type Query {
-        getDummy(id: ID): dummy;
+        getDummy(id: ID): dummy
     }
 
 
@@ -34,7 +40,7 @@ const schema = buildSchema(`
         register(registerInput: registerInput): User
         login(loginInput: LoginInput): User
         verifyCode(code: String): User
-        insertDummy(text: String): dummy;
+        insertDummy(text: String): dummy
     }
 
 `);

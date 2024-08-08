@@ -15,8 +15,8 @@ model dummy {
 
 model users {
   id       Int     @id @default(autoincrement())
-  email    String  @db.VarChar(255)
-  password String  @db.VarChar(40)
+  email    String  @db.VarChar(255) @unique
+  password String  @db.VarChar(255)
   secret   String  @db.VarChar(255)
   auth     Boolean
   type     String  @db.VarChar(15)

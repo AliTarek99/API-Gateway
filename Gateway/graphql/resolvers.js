@@ -1,34 +1,36 @@
-const validation = require('express-validator');
-const users = require('../models/users');
+const validator = require('validator');
 const bcrypt = require('bcrypt');
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const jwt = require('jsonwebtoken');
-const { verifyToken } = require('../util/util');
-const { PrismaClient: compdb_client } = require('../prisma/clients/generated/comp-prisma-client');
-const { PrismaClient: custdb_client } = require('../prisma/clients/generated/cust-prisma-client');
+const compdb_class = require('../prisma/src/generated/comp-prisma-client/index.js').PrismaClient;
+const custdb_class = require('../prisma/src/generated/cust-prisma-client/index.js').PrismaClient;
+
+const compdb_client = new compdb_class();
+const custdb_client = new custdb_class();
+
 
 exports.register = async (args) => {
-    const { password, email, type } = args.registerregisterInput;
-
+    const { password, email, type } = args.registerInput;
+    let errors = [];
     // validate inputs
-    if (!email || !validation.isEmail(email)) {
-        let err = new Error('Invalid email');
-        err.statusCode = 400;
-        throw err;
+    if (!email || !validator.isEmail(email)) {
+        errors.push({message: 'Invalid email', code: 1});
     }
 
     if (!password || password.length < 6) {
-        let err = new Error('Password must be at least 6 characters');
-        err.statusCode = 400;
-        throw err;
+        errors.push({message: 'Password must be at least 6 characters', code: 2});
     }
 
     if (!type || !['customer', 'company'].includes(type)) {
-        let err = new Error('Invalid type');
-        err.statusCode = 400;
-        throw err;
+        errors.push({message: 'Invalid type', code: 3});
     }
+
+    // if there are errors return them
+    if(errors.length > 0)
+        return {
+            errors: errors
+        };
 
 
     // check if user exists
@@ -36,7 +38,6 @@ exports.register = async (args) => {
     promises.push(compdb_client.users.findFirst({
         where: {
             email: email,
-            password: password
         },
         select: {
             id: true,
@@ -48,7 +49,6 @@ exports.register = async (args) => {
     promises.push(custdb_client.users.findFirst({
         where: {
             email: email,
-            password: password
         },
         select: {
             id: true,
@@ -56,15 +56,16 @@ exports.register = async (args) => {
         }
     }));
 
-    await Promise.all(promises);
+    promises = await Promise.all(promises);
 
     let check = promises[0] || promises[1];
 
 
     if (check) {
-        let err = new Error('User already exists');
-        err.statusCode = 400;
-        throw err;
+        errors.push({message: 'User already exists', code: 4});
+        return {
+            errors: errors
+        };
     }
     // hash password
     const hash = await bcrypt.hash(password, 10);
@@ -72,7 +73,7 @@ exports.register = async (args) => {
 
     if (type === 'company') {
         // generate secret for authenticator app
-        let secret = speakeasy.generateSecret({
+        var secret = speakeasy.generateSecret({
             name: "api-gateway"
         }).ascii;
 
@@ -82,26 +83,32 @@ exports.register = async (args) => {
     }
 
     // save user to database
-    const user = await db.users.create({
-        data: {
-            password: hash,
-            email: email,
-            type: type,
-            secret: secret,
-        }
+    let data = {
+        password: hash,
+        email: email,
+        type: type,
+    }
+    if(type === 'company')
+        data.secret = secret
+
+    const res = await db.users.create({
+        data: data
     });
-    user.qrcode = qr;
-    return user;
+
+    res.errors = errors;
+    res.qrcode = qr;
+    return res;
 };
 
 exports.login = async (args) => {
     const { email, password } = args.loginInput;
-
+    let errors = [];
     // validate inputs
-    if (!email || !validation.isEmail(email)) {
-        let err = new Error('Invalid email');
-        err.statusCode = 400;
-        throw err;
+    if (!email || !validator.isEmail(email)) {
+        errors.push({message: 'Invalid email', code: 1});
+        return {
+            errors: errors
+        };
     }
 
     // check if user exists
@@ -109,13 +116,13 @@ exports.login = async (args) => {
     promises.push(compdb_client.users.findFirst({
         where: {
             email: email,
-            password: password
         },
         select: {
             id: true,
             type: true,
             secret: true,
-            auth: true
+            auth: true,
+            password: true
         }
     }));
     promises.push(custdb_client.users.findFirst({
@@ -129,21 +136,25 @@ exports.login = async (args) => {
         }
     }));
 
-    await Promise.all(promises);
+    promises = await Promise.all(promises);
 
     let user = promises[0] || promises[1];
 
-    if (!user) {
-        let err = new Error('Invalid credentials');;
-        err.statusCode = 400;
-        throw err;
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        errors.push({message: 'Invalid credentials', code: 5});
+        return {
+            errors: errors
+        };
     }
 
+    // check if user is verified
     if(user.type === 'company' && user.auth === false){
-        let err = new Error('Account not verified');
-        err.statusCode = 400;
-        err.qrcode = await qrcode.toDataURL(user.secret);
-        throw err;
+        errors.push({message: 'Account not verified', code: 6});
+        return {
+            errors: errors,
+            qrcode: await qrcode.toDataURL(user.secret)
+        }
     }
 
 
@@ -156,6 +167,7 @@ exports.login = async (args) => {
         expiresIn: '1h'
     });
     return {
+        errors: [],
         token: token,
         ...user
     };
@@ -163,32 +175,53 @@ exports.login = async (args) => {
 
 exports.verifyCode = async (args, req) => {
     const user = req.user;
-
+    let errors = [];
     if (!user || user.type !== 'company') {
-        let err = new Error('Not Found!');
-        err.statusCode = 404;
-        throw err;
+        errors.push({message: 'Not Found!', code: 404});
+        return {
+            errors: errors
+        };
     }
 
     // get secret from database
-    const secret = await users.findOne({
+    user = await compdb_client.users.findFirst({
         where: {
             id: user.id
         },
-        attributes: ['secret']
+        select: {
+            id: true,
+            secret: true,
+            auth: true
+        }
     });
 
 
     const { code } = args;
     // check if code is valid
     const verified = speakeasy.totp.verify({
-        secret: secret,
+        secret: user.secret,
         encoding: 'ascii',
         token: code
     });
     if (!verified) {
-        throw new Error('Invalid code');
+        errors.push({message: 'Invalid code', code: 8});
+        return {
+            errors: errors
+        };
     }
+
+    if(!user.auth) {
+        // update user in database
+        await compdb_client.users.update({
+            where: {
+                id: user.id
+            },
+            data: {
+                auth: true
+            }
+        });
+    }
+
     // generate jwt
     const token = jwt.sign({
         id: user.id,
@@ -198,6 +231,7 @@ exports.verifyCode = async (args, req) => {
         expiresIn: '1h'
     });
     return {
+        errors: [],
         token: token,
         ...user
     };
@@ -205,13 +239,14 @@ exports.verifyCode = async (args, req) => {
 
 exports.getDummy = async (args, req) => {
     const { id } = args;
-    let user = req.user;
+    let user = req.user, errors = [];
 
     // check if user is authorized to access this
     if (!user || !user.verified) {
-        let err = new Error('UnAuthorized');
-        err.statusCode = 401;
-        throw err;
+        errors.push({message: 'UnAuthorized', code: 401});
+        return {
+            errors: errors
+        };
     }
 
     // choose which database to handle user request
@@ -232,9 +267,10 @@ exports.getDummy = async (args, req) => {
 
     // check if dummy exists
     if (!dummy) {
-        let err = new Error('Not Found');
-        err.statusCode = 404;
-        throw err;
+        errors.push({message: 'Not Found!', code: 404});
+        return {
+            errors: errors
+        };
     }
 
     return dummy;
@@ -243,12 +279,13 @@ exports.getDummy = async (args, req) => {
 exports.insertDummy = async (args, req) => {
     const { text } = args;
     let user = req.user;
-
+    let errors = [];
     // check if user is verified
     if (!user || !user.verified) {
-        let err = new Error('UnAuthorized');
-        err.statusCode = 401;
-        throw err;
+        errors.push({message: 'UnAuthorized', code: 401});
+        return {
+            errors: errors
+        };
     }
 
     // choose which database to handle user request

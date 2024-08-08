@@ -9,14 +9,14 @@ datasource db {
 }
 
 model dummy {
-  id   BigInt @id
+  id   BigInt @id @default(autoincrement())
   text String
 }
 
 model users {
-  id       Int    @id
-  email    String @db.VarChar(255)
-  password String @db.VarChar(40)
+  id       Int    @id @default(autoincrement())
+  email    String @unique @db.VarChar(255)
+  password String @db.VarChar(255)
   type     String @db.VarChar(15)
 
   @@index([email, password, id, type], map: "users_email_password_index")

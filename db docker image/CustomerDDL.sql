@@ -1,7 +1,7 @@
 CREATE TABLE Users(
-    id INTEGER NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    password VARCHAR(40) NOT NULL,
+    id SERIAL NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
     type VARCHAR(15) NOT NULL
 );
 CREATE INDEX users_email_password_index ON
@@ -9,7 +9,7 @@ CREATE INDEX users_email_password_index ON
 ALTER TABLE
     Users ADD PRIMARY KEY(id);
 CREATE TABLE dummy(
-    id BIGINT NOT NULL,
+    id SERIAL NOT NULL,
     text TEXT NOT NULL
 );
 ALTER TABLE
