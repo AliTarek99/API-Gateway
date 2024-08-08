@@ -16,7 +16,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    command: npm start
+    command: sh -c "npx prisma generate --schema ./prisma/company.prisma && npx prisma generate --schema ./prisma/customer.prisma && npm start"
     networks:
       - api-gateway
 
