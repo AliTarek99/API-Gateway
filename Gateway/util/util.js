@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+
 exports.verifyToken = async (req, res, next) => {
     // get token from header
     const token = req.get('Authorization');
@@ -6,8 +8,12 @@ exports.verifyToken = async (req, res, next) => {
     }
 
     // verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+    } catch (err) {
+        return next();
+    }
     next();
 };
 

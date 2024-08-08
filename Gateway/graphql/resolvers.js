@@ -74,8 +74,9 @@ exports.register = async (args) => {
     if (type === 'company') {
         // generate secret for authenticator app
         var secret = speakeasy.generateSecret({
-            name: "api-gateway"
-        }).ascii;
+            name: "apigateway",
+            otpauth_url: true
+        }).otpauth_url;
 
         // generate qrcode for this secret for better user exprerience
         var qr = await qrcode.toDataURL(secret);
@@ -101,6 +102,7 @@ exports.register = async (args) => {
     });
     res.errors = errors;
     res.qrcode = qr;
+    res.id = res.id;
     res.token = jwt.sign({
         id: res.id,
         type: type,
@@ -159,16 +161,8 @@ exports.login = async (args) => {
         };
     }
 
-    // check if user is verified
-    if(user.type === 'company' && user.auth === false){
-        errors.push({message: 'Account not verified', code: 6});
-        return {
-            errors: errors,
-            qrcode: await qrcode.toDataURL(user.secret)
-        }
-    }
-
-
+    user.id = parseInt(user.id);
+    
     // generate jwt
     const token = jwt.sign({
         id: user.id,
@@ -177,6 +171,16 @@ exports.login = async (args) => {
     }, process.env.JWT_SECRET, {
         expiresIn: '1h'
     });
+
+    if(user.type === 'company' && user.auth === false) {
+        errors.push({message: 'Not verified', code: 6})
+        return {
+            errors: errors,
+            qrcode: await qrcode.toDataURL(user.secret),
+            token: token
+        };
+    }
+
 
     delete user.secret;
     delete user.auth;
@@ -208,7 +212,8 @@ exports.verifyCode = async (args, req) => {
         select: {
             id: true,
             secret: true,
-            auth: true
+            auth: true,
+            type: true
         }
     });
 
@@ -216,8 +221,8 @@ exports.verifyCode = async (args, req) => {
     const { code } = args;
     // check if code is valid
     const verified = speakeasy.totp.verify({
-        secret: user.secret,
-        encoding: 'ascii',
+        secret: user.secret.split('=')[1],
+        encoding: 'base32',
         token: code
     });
     if (!verified) {
@@ -284,10 +289,12 @@ exports.getDummy = async (args, req) => {
     // get dummy from database
     const dummy = await db.dummy.findFirst({
         where: {
-            id: id
+            id: parseInt(id)
         }
     });
 
+    
+    
     // check if dummy exists
     if (!dummy) {
         errors.push({message: 'Not Found!', code: 404});
@@ -295,7 +302,9 @@ exports.getDummy = async (args, req) => {
             errors: errors
         };
     }
-
+    
+    dummy.id = parseInt(dummy.id);
+    
     return {
         errors: [],
         ...dummy
@@ -334,8 +343,15 @@ exports.insertDummy = async (args, req) => {
     const dummy = await db.dummy.create({
         data: {
             text: text
+        },
+        select: {
+            id: true,
+            text: true
         }
     });
+
+    dummy.id = parseInt(dummy.id);
+
 
     if (!dummy) {
         errors.push({message: 'Not Found', code: 404});
