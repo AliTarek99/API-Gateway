@@ -62,7 +62,7 @@ exports.register = async (args) => {
 
 
     if (check) {
-        errors.push({message: 'User already exists', code: 4});
+        errors.push({message: 'Email already exists', code: 4});
         return {
             errors: errors
         };
@@ -88,15 +88,26 @@ exports.register = async (args) => {
         email: email,
         type: type,
     }
-    if(type === 'company')
-        data.secret = secret
+    if(type === 'company') {
+        data.secret = secret;
+        data.auth = false;
+    }
 
     const res = await db.users.create({
-        data: data
+        data: data,
+        select: {
+            id: true
+        }
     });
-
     res.errors = errors;
     res.qrcode = qr;
+    res.token = jwt.sign({
+        id: res.id,
+        type: type,
+        verified: type === 'customer' ? true : false
+    }, process.env.JWT_SECRET, {
+        expiresIn: '1h'
+    });
     return res;
 };
 
@@ -128,11 +139,11 @@ exports.login = async (args) => {
     promises.push(custdb_client.users.findFirst({
         where: {
             email: email,
-            password: password
         },
         select: {
             id: true,
             type: true,
+            password: true
         }
     }));
 
@@ -162,10 +173,16 @@ exports.login = async (args) => {
     const token = jwt.sign({
         id: user.id,
         type: user.type,
-        verified: type === 'customer' ? true : false
+        verified: user.type === 'customer' ? true : false
     }, process.env.JWT_SECRET, {
         expiresIn: '1h'
     });
+
+    delete user.secret;
+    delete user.auth;
+    delete user.password;
+    delete user.type;
+
     return {
         errors: [],
         token: token,
@@ -174,7 +191,7 @@ exports.login = async (args) => {
 };
 
 exports.verifyCode = async (args, req) => {
-    const user = req.user;
+    let user = req.user;
     let errors = [];
     if (!user || user.type !== 'company') {
         errors.push({message: 'Not Found!', code: 404});
@@ -254,8 +271,14 @@ exports.getDummy = async (args, req) => {
     if (user.type === 'customer') {
         db = custdb_client;
     }
-    else {
+    else if (user.type === 'company') {
         db = compdb_client;
+    }
+    else {
+        errors.push({message: 'UnAuthorized', code: 401});
+        return {
+            errors: errors
+        };
     }
 
     // get dummy from database
@@ -273,7 +296,10 @@ exports.getDummy = async (args, req) => {
         };
     }
 
-    return dummy;
+    return {
+        errors: [],
+        ...dummy
+    }
 }
 
 exports.insertDummy = async (args, req) => {
@@ -293,14 +319,33 @@ exports.insertDummy = async (args, req) => {
     if (user.type === 'customer') {
         db = custdb_client;
     }
-    else {
+    else if (user.type === 'company') {
         db = compdb_client;
     }
+    else {
+        errors.push({message: 'UnAuthorized', code: 401});
+        return {
+            errors: errors
+        };
+    }
+
 
     // insert dummy to database
     const dummy = await db.dummy.create({
-        text: text
+        data: {
+            text: text
+        }
     });
 
-    return dummy;
+    if (!dummy) {
+        errors.push({message: 'Not Found', code: 404});
+        return {
+            errors: errors
+        };
+    }
+
+    return {
+        errors: [],
+        ...dummy
+    }
 }
