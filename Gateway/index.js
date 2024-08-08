@@ -3,7 +3,7 @@ const app = express();
 const schema = require('./graphql/schema');
 const resolver = require('./graphql/resolvers');
 const { graphqlHTTP } = require('graphql-http');
-const { verifyToken } = require('./util/util');
+const { verifyToken, initDB, errorhandler } = require('./util/util');
 
 // CORS
 app.use((req, res, next) => {
@@ -14,11 +14,12 @@ app.use((req, res, next) => {
 });
 
 
-app.use('', verifyToken, graphqlHTTP({
+app.use('/', verifyToken, graphqlHTTP({
     schema: schema,
     rootValue: resolver,
     customFormatErrorFn: errorhandler
 }));
 
+app.use(errorhandler);
 
 app.listen(process.env.port || 3000);

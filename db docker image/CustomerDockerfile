@@ -1,0 +1,2 @@
+FROM postgres:latest
+COPY ["CustomerDDL.sql", "/docker-entrypoint-initdb.d/CustomerDDL.sql"]

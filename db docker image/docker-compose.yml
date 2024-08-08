@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   customer-db:
-    image: postgres:latest
+    build: 
+      context: .
+      dockerfile: CustomerDockerfile
     container_name: customer-db
     environment:
       POSTGRES_USER: postgres
@@ -13,7 +15,9 @@ services:
     volumes:
       - db1:/var/lib/postgresql/data
   company-db:
-    image: postgres:latest
+    build: 
+      context: .
+      dockerfile: CompanyDockerfile
     container_name: company-db
     environment:
       POSTGRES_USER: postgres
