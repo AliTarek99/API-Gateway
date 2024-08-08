@@ -14,6 +14,9 @@ services:
       - 5432:5432
     volumes:
       - db1:/var/lib/postgresql/data
+    networks:
+      - api-gateway
+
   company-db:
     build: 
       context: .
@@ -27,6 +30,12 @@ services:
       - 5433:5432
     volumes:
       - db2:/var/lib/postgresql/data
+    networks:
+      - api-gateway
+
+networks:
+  api-gateway:
+    name: api-gateway
 
 volumes:
   db1:

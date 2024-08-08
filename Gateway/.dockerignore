@@ -1,0 +1,12 @@
+# Ignore node_modules directory
+node_modules
+
+# Ignore Dockerfile and .dockerignore itself
+Dockerfile
+.dockerignore
+
+# Ignore local configuration files
+*.env
+
+# Ignore prisma clients
+prisma/src

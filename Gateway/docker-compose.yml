@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    environment:
+      - PORT=8000
+      - CUSTOMER_DATABASE_URL=postgres://postgres:postgres@customer-db:5432/API-GATEWAY
+      - COMPANY_DATABASE_URL=postgres://postgres:postgres@company-db:5432/API-GATEWAY
+      - JWT_SECRET=secret
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm start
+    networks:
+      - api-gateway
+
+networks:
+  api-gateway:
+    name: api-gateway
