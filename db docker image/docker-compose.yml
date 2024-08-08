@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  customer-db:
+    image: postgres:latest
+    container_name: customer-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: API-GATEWAY
+    ports:
+      - 5432:5432
+    volumes:
+      - db1:/var/lib/postgresql/data
+  company-db:
+    image: postgres:latest
+    container_name: company-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: API-GATEWAY
+    ports:
+      - 5433:5432
+    volumes:
+      - db2:/var/lib/postgresql/data
+
+volumes:
+  db1:
+    driver: local
+  db2:
+    driver: local
+
+  
