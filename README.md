@@ -34,3 +34,11 @@ Comprehensive API endpoint documentation is available [here](https://documenter.
 ## Usage
 - Ensure the API Gateway is properly configured to route requests based on user type.
 - Consult the endpoint documentation for detailed information on API endpoints and request handling.
+
+## How To Run
+### Prerequisites
+- Docker installed on your machine
+
+### Running the project
+- Navigate to the db docker image folder through the cmd and run "docker-compose up --build -d"
+- after the database is up and running got to the gateway folder through the cmd and run "docker-compose up --build -d"
